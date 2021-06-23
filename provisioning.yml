@@ -1,5 +1,50 @@
 ---
-- hosts: all
+- hosts: mysql
+  handlers:
+    - name: restart mysql
+      service:
+        name: mysql
+        state: restarted
+      become: yes
+
+  tasks:
+    - name: 'Instala pacote de dependencia do sistema operacional'
+      apt:
+        name: 
+          - mysql-server-5.6
+          - python-mysqldb
+        state: latest
+      become: yes
+
+    - name: 'Cria o banco do MySql'
+      mysql_db:
+        name: wordpress_db
+        login_user: root
+        state: present
+
+    - name: 'Cria usuario do Mysql'
+      mysql_user:
+        login_user: root
+        name: wordpress_user
+        password: '12345'
+        priv: 'wordpress_db.*:ALL'
+        state: present
+        host: "{{item}}"
+      loop:
+        - 'localhost'
+        - '127.0.0.1'
+        - '192.168.0.80'
+    
+    - name: 'Configura apache para servir o wordpress'
+      copy:
+        src: 'files/my.cnf'
+        dest: '/etc/mysql/my.cnf'
+      become: yes
+      notify:
+        - restart mysql
+
+
+- hosts: wordpress
   handlers:
     - name: restart apache
       service:
@@ -17,25 +62,9 @@
           - php5-gd
           - libssh2-php
           - php5-mcrypt
-          - mysql-server-5.6
-          - python-mysqldb
           - php5-mysql
         state: latest
       become: yes
-
-    - name: 'Cria o banco do MySql'
-      mysql_db:
-        name: wordpress_db
-        login_user: root
-        state: present
-
-    - name: 'Cria usuario do Mysql'
-      mysql_user:
-        login_user: root
-        name: wordpress_user
-        password: '12345'
-        priv: 'wordpress_db.*:ALL'
-        state: present
 
     - name: 'Baixo o arquivo de instalação do wordpress'
       get_url:
@@ -65,6 +94,7 @@
         - {regex: 'nome_do_banco_de_dados_aqui', value: 'wordpress_db'}
         - {regex: 'nome_de_usuario_aqui', value: 'wordpress_user'}
         - {regex: 'senha_aqui', value: '12345'}
+        - {regex: 'localhost', value: '192.168.0.82'}
       become: yes
 
     - name: 'Configura apache para servir o wordpress'
